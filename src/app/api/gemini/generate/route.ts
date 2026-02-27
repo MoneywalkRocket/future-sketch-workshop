@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isValidMode, RefineRequest } from "@/types";
-import { buildPrompt, buildRegionRefinePrompt } from "@/lib/prompt-builder";
+import { buildGeneratePrompt } from "@/lib/prompt-builder";
 import { checkRateLimit } from "@/lib/rate-limit";
-
-// Max ~5MB base64 payload
-const MAX_IMAGE_SIZE = 7_000_000;
 
 export async function POST(req: NextRequest) {
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -26,7 +22,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Validate API key
   if (!GEMINI_API_KEY) {
     console.error("GEMINI_API_KEY not configured");
     return NextResponse.json(
@@ -35,54 +30,31 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Parse and validate body
-  let body: RefineRequest;
+  let body: { prompt?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { image, prompt, mode, isRegion } = body;
+  const { prompt } = body;
 
-  if (!image || typeof image !== "string") {
-    return NextResponse.json({ error: "Missing or invalid image" }, { status: 400 });
+  if (!prompt || typeof prompt !== "string") {
+    return NextResponse.json({ error: "Missing or invalid prompt" }, { status: 400 });
   }
-  if (image.length > MAX_IMAGE_SIZE) {
-    return NextResponse.json({ error: "Image too large (max ~5MB)" }, { status: 400 });
-  }
-  if (!isValidMode(mode)) {
-    return NextResponse.json({ error: "Invalid mode" }, { status: 400 });
-  }
-  if (prompt && typeof prompt !== "string") {
-    return NextResponse.json({ error: "Invalid prompt" }, { status: 400 });
-  }
-  if (prompt && prompt.length > 500) {
+  if (prompt.length > 500) {
     return NextResponse.json({ error: "Prompt too long (max 500 chars)" }, { status: 400 });
   }
 
-  const fullPrompt = isRegion
-    ? buildRegionRefinePrompt(mode, prompt || "")
-    : buildPrompt(mode, prompt || "");
+  const fullPrompt = buildGeneratePrompt(prompt);
 
   try {
-    // Call Gemini API with image generation (Nano Banana Pro — highest quality)
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent`;
 
     const geminiBody = {
       contents: [
         {
-          parts: [
-            {
-              inlineData: {
-                mimeType: "image/png",
-                data: image,
-              },
-            },
-            {
-              text: fullPrompt,
-            },
-          ],
+          parts: [{ text: fullPrompt }],
         },
       ],
       generationConfig: {
@@ -101,11 +73,11 @@ export async function POST(req: NextRequest) {
 
     if (!geminiRes.ok) {
       const errText = await geminiRes.text();
-      console.error("Gemini API error:", geminiRes.status, errText);
+      console.error("Gemini Generate API error:", geminiRes.status, errText);
 
       if (geminiRes.status === 429) {
         return NextResponse.json(
-          { error: "Gemini API rate limit exceeded. Please wait 1-2 minutes and try again." },
+          { error: "AI rate limit exceeded. Please wait 1-2 minutes and try again." },
           { status: 429 }
         );
       }
@@ -118,11 +90,11 @@ export async function POST(req: NextRequest) {
 
     const geminiData = await geminiRes.json();
 
-    // Extract image from response
     const candidates = geminiData.candidates;
     if (!candidates || candidates.length === 0) {
+      console.error("Gemini Generate: no candidates. Response:", JSON.stringify(geminiData).slice(0, 500));
       return NextResponse.json(
-        { error: "AI did not return any results. Try a different drawing or prompt." },
+        { error: "AI did not return any results. Try a different prompt." },
         { status: 502 }
       );
     }
@@ -139,7 +111,7 @@ export async function POST(req: NextRequest) {
 
     if (!outputImage) {
       return NextResponse.json(
-        { error: "AI did not return an image. Try adding more detail to your sketch." },
+        { error: "AI did not return an image. Try a more descriptive prompt." },
         { status: 502 }
       );
     }
@@ -151,7 +123,7 @@ export async function POST(req: NextRequest) {
       }
     );
   } catch (err) {
-    console.error("Gemini call failed:", err);
+    console.error("Gemini Generate call failed:", err);
     return NextResponse.json(
       { error: "Failed to connect to AI service. Please check your connection and try again." },
       { status: 500 }

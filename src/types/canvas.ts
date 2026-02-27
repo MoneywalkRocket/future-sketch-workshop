@@ -91,6 +91,14 @@ export type SceneObject =
   | TextObject
   | ImageObject;
 
+// ---- Refine region ----
+export interface RefineRegion {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 // ---- Editor state ----
 export interface EditorState {
   objects: SceneObject[];
@@ -103,6 +111,8 @@ export interface EditorState {
   showGrid: boolean;
   zoom: number;
   panOffset: { x: number; y: number };
+  refineMode: boolean;
+  refineRegion: RefineRegion | null;
 }
 
 // ---- Actions ----
@@ -121,4 +131,7 @@ export type EditorAction =
   | { type: "TOGGLE_GRID" }
   | { type: "SET_ZOOM"; zoom: number }
   | { type: "SET_PAN"; offset: { x: number; y: number } }
-  | { type: "CLEAR_CANVAS" };
+  | { type: "CLEAR_CANVAS" }
+  | { type: "ENTER_REFINE_MODE" }
+  | { type: "EXIT_REFINE_MODE" }
+  | { type: "SET_REFINE_REGION"; region: RefineRegion | null };

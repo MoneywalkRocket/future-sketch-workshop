@@ -6,6 +6,7 @@ interface ToolSidebarProps {
   activeTool: ToolType;
   dispatch: (action: EditorAction) => void;
   onImageUpload: () => void;
+  onAIGenerate: () => void;
   isMobile: boolean;
 }
 
@@ -117,7 +118,7 @@ const tools: ToolDef[] = [
   },
 ];
 
-export default function ToolSidebar({ activeTool, dispatch, onImageUpload, isMobile }: ToolSidebarProps) {
+export default function ToolSidebar({ activeTool, dispatch, onImageUpload, onAIGenerate, isMobile }: ToolSidebarProps) {
   const containerClass = isMobile
     ? "flex items-center gap-0.5 px-2 py-1 bg-white border-t border-gray-200 overflow-x-auto"
     : "flex flex-col items-center gap-0.5 py-2 px-1 bg-white border-r border-gray-200 w-11";
@@ -153,6 +154,20 @@ export default function ToolSidebar({ activeTool, dispatch, onImageUpload, isMob
           <rect x="3" y="3" width="18" height="18" rx="2" />
           <circle cx="8.5" cy="8.5" r="1.5" />
           <polyline points="21 15 16 10 5 21" />
+        </svg>
+      </button>
+
+      <div className={isMobile ? "w-px h-5 bg-gray-200 mx-0.5 shrink-0" : "w-5 h-px bg-gray-200 my-0.5"} />
+
+      {/* AI Generate */}
+      <button
+        onClick={onAIGenerate}
+        className="p-1.5 rounded text-violet-500 hover:bg-violet-50 hover:text-violet-700 transition-colors shrink-0"
+        aria-label="AI Generate asset"
+        title="AI Generate asset"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z" />
         </svg>
       </button>
     </div>

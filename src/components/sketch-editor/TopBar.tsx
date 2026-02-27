@@ -15,6 +15,7 @@ interface TopBarProps {
   onTogglePrompt: () => void;
   showGrid: boolean;
   loading: boolean;
+  refineMode: boolean;
 }
 
 export default function TopBar({
@@ -28,6 +29,7 @@ export default function TopBar({
   dispatch,
   showGrid,
   loading,
+  refineMode,
 }: TopBarProps) {
   return (
     <div className="flex items-center justify-between h-11 px-3 bg-white border-b border-gray-200 shrink-0 select-none">
@@ -92,15 +94,26 @@ export default function TopBar({
       </div>
 
       {/* Right */}
-      <button
-        onClick={onCapture}
-        disabled={loading}
-        className="px-3 py-1 rounded-md bg-blue-600 text-white text-xs font-semibold
-                   hover:bg-blue-700 disabled:opacity-50 transition-colors"
-        aria-label="Refine with AI"
-      >
-        {loading ? "Refining..." : "Refine with AI"}
-      </button>
+      {refineMode ? (
+        <button
+          onClick={() => dispatch({ type: "EXIT_REFINE_MODE" })}
+          className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 text-xs font-semibold
+                     hover:bg-gray-300 transition-colors"
+          aria-label="Cancel refine"
+        >
+          Cancel Refine
+        </button>
+      ) : (
+        <button
+          onClick={onCapture}
+          disabled={loading}
+          className="px-3 py-1 rounded-md bg-blue-600 text-white text-xs font-semibold
+                     hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          aria-label="Refine with AI"
+        >
+          {loading ? "Refining..." : "Refine with AI"}
+        </button>
+      )}
     </div>
   );
 }

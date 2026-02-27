@@ -12,6 +12,8 @@ const initialState: EditorState = {
   showGrid: false,
   zoom: 1,
   panOffset: { x: 0, y: 0 },
+  refineMode: false,
+  refineRegion: null,
 };
 
 function editorReducer(state: EditorState, action: EditorAction): EditorState {
@@ -55,6 +57,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       return { ...state, panOffset: action.offset };
     case "CLEAR_CANVAS":
       return { ...state, objects: [], selectedIds: [] };
+    case "ENTER_REFINE_MODE":
+      return { ...state, refineMode: true, refineRegion: null, selectedIds: [] };
+    case "EXIT_REFINE_MODE":
+      return { ...state, refineMode: false, refineRegion: null };
+    case "SET_REFINE_REGION":
+      return { ...state, refineRegion: action.region };
     default:
       return state;
   }

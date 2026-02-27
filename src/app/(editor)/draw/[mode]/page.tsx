@@ -5,6 +5,7 @@ import { useState, useCallback } from "react";
 import Link from "next/link";
 import SketchEditor from "@/components/sketch-editor/SketchEditor";
 import { Mode, MODE_CONFIGS, isValidMode } from "@/types";
+import type { RefineRegion } from "@/types/canvas";
 
 export default function DrawPage() {
   const params = useParams();
@@ -17,7 +18,7 @@ export default function DrawPage() {
   const [error, setError] = useState<string | null>(null);
 
   const handleCapture = useCallback(
-    async (dataUrl: string) => {
+    async (dataUrl: string, region?: RefineRegion) => {
       if (!isValidMode(modeParam)) return;
       setLoading(true);
       setError(null);
@@ -32,7 +33,12 @@ export default function DrawPage() {
         const res = await fetch("/api/gemini/refine", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: base64, prompt, mode: modeParam }),
+          body: JSON.stringify({
+            image: base64,
+            prompt,
+            mode: modeParam,
+            isRegion: !!region,
+          }),
         });
 
         if (!res.ok) {
@@ -42,16 +48,27 @@ export default function DrawPage() {
 
         const data = await res.json();
 
-        sessionStorage.setItem(
-          "sketchResult",
-          JSON.stringify({
-            image: data.image,
-            comment,
-            mode: modeParam,
-          })
-        );
-
-        router.push("/result");
+        if (region) {
+          // Region refine: place result back on canvas via global callback
+          const w = window as unknown as Record<string, unknown>;
+          const placeImage = w.__sketchEditorPlaceRefinedImage as
+            | ((url: string, r: RefineRegion) => void)
+            | undefined;
+          if (placeImage) {
+            placeImage(data.image, region);
+          }
+        } else {
+          // Full canvas refine: navigate to result page
+          sessionStorage.setItem(
+            "sketchResult",
+            JSON.stringify({
+              image: data.image,
+              comment,
+              mode: modeParam,
+            })
+          );
+          router.push("/result");
+        }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Something went wrong";
         setError(message);

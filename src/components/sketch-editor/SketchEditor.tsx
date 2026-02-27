@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { Mode, ModeConfig } from "@/types";
-import type { SceneObject, TextObject } from "@/types/canvas";
+import type { SceneObject, TextObject, RefineRegion } from "@/types/canvas";
 import { useEditorState } from "./hooks/useEditorState";
 import { useHistory } from "./hooks/useHistory";
 import EditorCanvas from "./EditorCanvas";
@@ -11,7 +11,9 @@ import ToolSidebar from "./ToolSidebar";
 import PropertyPanel from "./PropertyPanel";
 import PromptPanel from "./PromptPanel";
 import TextInputOverlay from "./TextInputOverlay";
-import { flattenToDataUrl } from "./utils/canvas-export";
+import AssetGeneratorModal from "./AssetGeneratorModal";
+import RefineSelectionOverlay from "./RefineSelectionOverlay";
+import { flattenToDataUrl, flattenRegionToDataUrl } from "./utils/canvas-export";
 import { generateId } from "./utils/id-generator";
 
 interface SketchEditorProps {
@@ -21,7 +23,7 @@ interface SketchEditorProps {
   comment: string;
   onPromptChange: (v: string) => void;
   onCommentChange: (v: string) => void;
-  onCapture: (dataUrl: string) => void;
+  onCapture: (dataUrl: string, region?: RefineRegion) => void;
   loading: boolean;
 }
 
@@ -41,6 +43,7 @@ export default function SketchEditor({
   const { pushSnapshot, undo, redo, canUndo, canRedo } = useHistory();
   const [previewObject, setPreviewObject] = useState<SceneObject | null>(null);
   const [promptOpen, setPromptOpen] = useState(false);
+  const [generateModalOpen, setGenerateModalOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ w: CANVAS_BASE_W, h: CANVAS_BASE_H });
   const [textInput, setTextInput] = useState<{ x: number; y: number } | null>(null);
@@ -67,7 +70,6 @@ export default function SketchEditor({
   // Keyboard shortcuts
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      // Don't handle shortcuts when typing in inputs
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
 
@@ -91,13 +93,21 @@ export default function SketchEditor({
         }
       }
       if (e.key === "Escape") {
+        if (state.refineMode) {
+          dispatch({ type: "EXIT_REFINE_MODE" });
+          return;
+        }
+        if (generateModalOpen) {
+          setGenerateModalOpen(false);
+          return;
+        }
         dispatch({ type: "CLEAR_SELECTION" });
         setTextInput(null);
         return;
       }
 
-      // Tool shortcuts (only single letter, no modifiers)
-      if (ctrlOrMeta || e.altKey) return;
+      // Tool shortcuts (only single letter, no modifiers, not in refine mode)
+      if (ctrlOrMeta || e.altKey || state.refineMode) return;
       const shortcuts: Record<string, () => void> = {
         v: () => dispatch({ type: "SET_TOOL", tool: "select" }),
         b: () => dispatch({ type: "SET_TOOL", tool: "brush" }),
@@ -115,7 +125,7 @@ export default function SketchEditor({
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.selectedIds]);
+  }, [state.selectedIds, state.refineMode, generateModalOpen]);
 
   const handleUndo = useCallback(() => {
     const snapshot = undo();
@@ -133,10 +143,72 @@ export default function SketchEditor({
     dispatch({ type: "DELETE_OBJECTS", ids: state.selectedIds });
   }, [state.selectedIds, state.objects, pushSnapshot, dispatch]);
 
-  const handleCapture = useCallback(() => {
+  // Enter refine selection mode
+  const handleRefineClick = useCallback(() => {
+    dispatch({ type: "ENTER_REFINE_MODE" });
+  }, [dispatch]);
+
+  // Refine selected region
+  const handleRefineRegion = useCallback(() => {
+    if (!state.refineRegion) return;
+    const dataUrl = flattenRegionToDataUrl(
+      state.objects,
+      state.refineRegion,
+      CANVAS_BASE_W,
+      CANVAS_BASE_H
+    );
+    onCapture(dataUrl, state.refineRegion);
+  }, [state.objects, state.refineRegion, onCapture]);
+
+  // Refine full canvas
+  const handleRefineFullCanvas = useCallback(() => {
     const dataUrl = flattenToDataUrl(state.objects, CANVAS_BASE_W, CANVAS_BASE_H);
     onCapture(dataUrl);
   }, [state.objects, onCapture]);
+
+  // Place refined region image back on canvas
+  const placeRefinedImage = useCallback(
+    (imageDataUrl: string, region: RefineRegion) => {
+      const img = new Image();
+      img.onload = () => {
+        pushSnapshot(state.objects);
+        dispatch({
+          type: "ADD_OBJECT",
+          object: {
+            id: generateId(),
+            type: "image",
+            x: region.x,
+            y: region.y,
+            opacity: 1,
+            src: imageDataUrl,
+            naturalWidth: img.naturalWidth,
+            naturalHeight: img.naturalHeight,
+            displayWidth: region.w,
+            displayHeight: region.h,
+          },
+        });
+        dispatch({ type: "EXIT_REFINE_MODE" });
+        dispatch({ type: "SET_TOOL", tool: "select" });
+      };
+      img.src = imageDataUrl;
+    },
+    [state.objects, pushSnapshot, dispatch]
+  );
+
+  // Expose placeRefinedImage to parent via ref
+  const placeRefinedImageRef = useRef(placeRefinedImage);
+  placeRefinedImageRef.current = placeRefinedImage;
+
+  // Make ref accessible externally so draw page can call it after API response
+  useEffect(() => {
+    const w = window as unknown as Record<string, unknown>;
+    w.__sketchEditorPlaceRefinedImage = (url: string, region: RefineRegion) => {
+      placeRefinedImageRef.current(url, region);
+    };
+    return () => {
+      delete w.__sketchEditorPlaceRefinedImage;
+    };
+  }, []);
 
   const openTextInput = useCallback((x: number, y: number) => {
     setTextInput({ x, y });
@@ -205,13 +277,11 @@ export default function SketchEditor({
               displayHeight: h,
             },
           });
-          // Switch to select tool for positioning
           dispatch({ type: "SET_TOOL", tool: "select" });
         };
         img.src = dataUrl;
       };
       reader.readAsDataURL(file);
-      // Reset input so same file can be uploaded again
       e.target.value = "";
     },
     [state.objects, pushSnapshot, dispatch]
@@ -238,10 +308,11 @@ export default function SketchEditor({
         onRedo={handleRedo}
         canUndo={canUndo()}
         canRedo={canRedo()}
-        onCapture={handleCapture}
+        onCapture={handleRefineClick}
         onTogglePrompt={() => setPromptOpen((v) => !v)}
         showGrid={state.showGrid}
         loading={loading}
+        refineMode={state.refineMode}
       />
 
       {/* Main area */}
@@ -252,12 +323,13 @@ export default function SketchEditor({
             activeTool={state.activeTool}
             dispatch={dispatch}
             onImageUpload={handleImageUpload}
+            onAIGenerate={() => setGenerateModalOpen(true)}
             isMobile={false}
           />
         )}
 
-        {/* Canvas */}
-        <div ref={canvasContainerRef} className="flex-1 overflow-hidden bg-gray-50">
+        {/* Canvas area */}
+        <div ref={canvasContainerRef} className="relative flex-1 overflow-hidden bg-gray-50">
           {canvasSize.w > 0 && canvasSize.h > 0 && (
             <EditorCanvas
               state={state}
@@ -268,6 +340,22 @@ export default function SketchEditor({
               openTextInput={openTextInput}
               canvasWidth={canvasSize.w}
               canvasHeight={canvasSize.h}
+            />
+          )}
+
+          {/* Refine selection overlay */}
+          {state.refineMode && (
+            <RefineSelectionOverlay
+              dispatch={dispatch}
+              refineRegion={state.refineRegion}
+              onRefineRegion={handleRefineRegion}
+              onRefineFullCanvas={handleRefineFullCanvas}
+              loading={loading}
+              zoom={state.zoom}
+              panOffset={state.panOffset}
+              canvasWidth={CANVAS_BASE_W}
+              canvasHeight={CANVAS_BASE_H}
+              containerRef={canvasContainerRef}
             />
           )}
         </div>
@@ -287,6 +375,7 @@ export default function SketchEditor({
           activeTool={state.activeTool}
           dispatch={dispatch}
           onImageUpload={handleImageUpload}
+          onAIGenerate={() => setGenerateModalOpen(true)}
           isMobile={true}
         />
       )}
@@ -313,6 +402,18 @@ export default function SketchEditor({
           canvasRect={canvasRect}
           zoom={state.zoom}
           panOffset={state.panOffset}
+        />
+      )}
+
+      {/* AI Asset Generator modal */}
+      {generateModalOpen && (
+        <AssetGeneratorModal
+          onClose={() => setGenerateModalOpen(false)}
+          dispatch={dispatch}
+          pushSnapshot={pushSnapshot}
+          objects={state.objects}
+          canvasWidth={CANVAS_BASE_W}
+          canvasHeight={CANVAS_BASE_H}
         />
       )}
 

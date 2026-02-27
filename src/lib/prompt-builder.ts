@@ -78,7 +78,9 @@ export function buildRegionRefinePrompt(mode: Mode, userPrompt: string): string 
 export function buildGeneratePrompt(userPrompt: string): string {
   return [
     "Generate exactly what is described below as a clean image asset.",
-    "Output on a white or transparent background.",
+    "CRITICAL: Output the asset on a TRANSPARENT background (alpha channel).",
+    "Do NOT fill the background with any color — no white, no gray, no solid color.",
+    "The asset must float on transparency so it can be composited onto any canvas.",
     "Style: modern, professional, suitable for a UI design mockup.",
     "Do not add extra elements, decorations, or frames unless requested.",
     "",

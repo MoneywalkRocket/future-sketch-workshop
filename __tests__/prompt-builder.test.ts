@@ -82,6 +82,12 @@ describe("buildGeneratePrompt", () => {
     expect(result).toContain("GENERATE: a chat icon");
   });
 
+  it("specifies transparent background", () => {
+    const result = buildGeneratePrompt("navigation bar");
+    expect(result).toContain("TRANSPARENT background");
+    expect(result).toContain("Do NOT fill the background with any color");
+  });
+
   it("specifies no extra elements", () => {
     const result = buildGeneratePrompt("navigation bar");
     expect(result).toContain("Do not add extra elements");

@@ -101,10 +101,12 @@ export async function POST(req: NextRequest) {
 
     const parts = candidates[0].content?.parts || [];
     let outputImage: string | null = null;
+    let mimeType = "image/png";
 
     for (const part of parts) {
       if (part.inlineData?.mimeType?.startsWith("image/")) {
         outputImage = part.inlineData.data;
+        mimeType = part.inlineData.mimeType;
         break;
       }
     }
@@ -117,7 +119,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { image: `data:image/png;base64,${outputImage}` },
+      { image: `data:${mimeType};base64,${outputImage}` },
       {
         headers: { "X-RateLimit-Remaining": String(remaining) },
       }

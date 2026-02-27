@@ -64,8 +64,8 @@ export async function POST(req: NextRequest) {
   const fullPrompt = buildPrompt(mode, prompt || "");
 
   try {
-    // Call Gemini API (Gemini 2.0 Flash with image generation)
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${GEMINI_API_KEY}`;
+    // Call Gemini API with image generation
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${GEMINI_API_KEY}`;
 
     const geminiBody = {
       contents: [
@@ -97,6 +97,14 @@ export async function POST(req: NextRequest) {
     if (!geminiRes.ok) {
       const errText = await geminiRes.text();
       console.error("Gemini API error:", geminiRes.status, errText);
+
+      if (geminiRes.status === 429) {
+        return NextResponse.json(
+          { error: "Gemini API rate limit exceeded. Please wait 1-2 minutes and try again." },
+          { status: 429 }
+        );
+      }
+
       return NextResponse.json(
         { error: `AI service returned an error (${geminiRes.status}). Please try again.` },
         { status: 502 }

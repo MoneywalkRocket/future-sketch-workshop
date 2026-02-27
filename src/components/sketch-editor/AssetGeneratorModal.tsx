@@ -23,14 +23,17 @@ export default function AssetGeneratorModal({
 }: AssetGeneratorModalProps) {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
+  const [removingBg, setRemovingBg] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [bgRemoved, setBgRemoved] = useState(false);
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return;
     setLoading(true);
     setError(null);
     setPreviewUrl(null);
+    setBgRemoved(false);
 
     try {
       const res = await fetch("/api/gemini/generate", {
@@ -52,6 +55,42 @@ export default function AssetGeneratorModal({
       setLoading(false);
     }
   }, [prompt]);
+
+  const handleRemoveBg = useCallback(async () => {
+    if (!previewUrl || removingBg) return;
+    setRemovingBg(true);
+    setError(null);
+
+    try {
+      // Load @imgly/background-removal from CDN at runtime (bypasses webpack + TS)
+      const cdnUrl = "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/dist/index.mjs";
+      const bgLib = await (Function("url", "return import(url)")(cdnUrl) as Promise<{ removeBackground: (blob: Blob, config: Record<string, unknown>) => Promise<Blob> }>);
+      const removeBackground = bgLib.removeBackground;
+
+      // Convert data URL to blob
+      const response = await fetch(previewUrl);
+      const blob = await response.blob();
+
+      const resultBlob = await removeBackground(blob, {
+        output: { format: "image/png" },
+      });
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        setPreviewUrl(reader.result as string);
+        setBgRemoved(true);
+        setRemovingBg(false);
+      };
+      reader.onerror = () => {
+        setError("Failed to process the image.");
+        setRemovingBg(false);
+      };
+      reader.readAsDataURL(resultBlob);
+    } catch {
+      setError("Background removal failed. Please try again.");
+      setRemovingBg(false);
+    }
+  }, [previewUrl, removingBg]);
 
   const handlePlace = useCallback(() => {
     if (!previewUrl) return;
@@ -88,6 +127,13 @@ export default function AssetGeneratorModal({
     };
     img.src = previewUrl;
   }, [previewUrl, objects, pushSnapshot, dispatch, onClose, canvasWidth, canvasHeight]);
+
+  const CHECKERBOARD_BG = {
+    backgroundImage:
+      "linear-gradient(45deg, #d0d0d0 25%, transparent 25%), linear-gradient(-45deg, #d0d0d0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #d0d0d0 75%), linear-gradient(-45deg, transparent 75%, #d0d0d0 75%)",
+    backgroundSize: "16px 16px",
+    backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0",
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
@@ -163,20 +209,57 @@ export default function AssetGeneratorModal({
           {/* Preview */}
           {previewUrl && (
             <div className="space-y-3">
-              <div className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center p-2">
+              <div
+                className="border border-gray-200 rounded-lg overflow-hidden flex items-center justify-center p-2"
+                style={bgRemoved ? CHECKERBOARD_BG : { backgroundColor: "#f9fafb" }}
+              >
                 <img
                   src={previewUrl}
                   alt="Generated asset"
                   className="max-w-full max-h-48 object-contain"
                 />
               </div>
-              <button
-                onClick={handlePlace}
-                className="w-full py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold
-                           hover:bg-blue-700 transition-colors"
-              >
-                Place on Canvas
-              </button>
+
+              {/* Action buttons */}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleRemoveBg}
+                  disabled={removingBg || bgRemoved}
+                  className="flex-1 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-semibold
+                             hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {removingBg ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Removing...
+                    </span>
+                  ) : bgRemoved ? (
+                    "BG Removed"
+                  ) : (
+                    "Remove Background"
+                  )}
+                </button>
+                <button
+                  onClick={handlePlace}
+                  disabled={removingBg}
+                  className="flex-1 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold
+                             hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Place on Canvas
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Background removal loading overlay */}
+          {removingBg && (
+            <div className="text-center">
+              <p className="text-xs text-gray-500">
+                AI model loading may take a moment on first use...
+              </p>
             </div>
           )}
         </div>

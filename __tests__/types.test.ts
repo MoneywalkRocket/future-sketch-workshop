@@ -27,7 +27,7 @@ describe("MODE_CONFIGS", () => {
       const config = MODE_CONFIGS[key];
       expect(config.label).toBeTruthy();
       expect(config.description).toBeTruthy();
-      expect(config.promptSuffix).toBeTruthy();
+      expect(config.styleGuide).toBeTruthy();
       expect(config.years).toBeGreaterThan(0);
     }
   });

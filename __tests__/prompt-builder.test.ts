@@ -1,43 +1,43 @@
 import { buildPrompt, buildRegionRefinePrompt, buildGeneratePrompt } from "@/lib/prompt-builder";
 
 describe("buildPrompt", () => {
-  it("includes workshop context", () => {
+  it("includes core refine rules", () => {
     const result = buildPrompt("1y", "");
-    expect(result).toContain("Future Sketch Workshop");
-    expect(result).toContain("rough hand-drawn sketch");
+    expect(result).toContain("Render EXACTLY what is drawn");
+    expect(result).toContain("do not add, remove, or reinterpret");
   });
 
-  it("includes preservation rules", () => {
+  it("includes polish instructions", () => {
     const result = buildPrompt("1y", "");
-    expect(result).toContain("LAYOUT: Keep every element in its approximate position");
-    expect(result).toContain("TEXT: Reproduce all text/labels exactly as written");
+    expect(result).toContain("Straighten hand-drawn lines");
+    expect(result).toContain("consistent spacing and alignment");
   });
 
-  it("includes mode-specific design direction for 1y", () => {
+  it("includes anti-patterns", () => {
     const result = buildPrompt("1y", "");
-    expect(result).toContain("1 Year");
-    expect(result).toContain("realistic, achievable next version");
-    expect(result).toContain("current mainstream patterns");
+    expect(result).toContain("DO NOT:");
+    expect(result).toContain("Add elements that are not in the sketch");
   });
 
-  it("includes mode-specific design direction for 3y", () => {
+  it("includes style guide for 1y", () => {
+    const result = buildPrompt("1y", "");
+    expect(result).toContain("Clean, polished, production-ready");
+  });
+
+  it("includes style guide for 3y", () => {
     const result = buildPrompt("3y", "");
-    expect(result).toContain("3 Years");
-    expect(result).toContain("significant evolution");
-    expect(result).toContain("AI-enhanced UI elements");
+    expect(result).toContain("Refined, premium, high-fidelity");
   });
 
-  it("includes mode-specific design direction for 5y", () => {
+  it("includes style guide for 5y", () => {
     const result = buildPrompt("5y", "");
-    expect(result).toContain("5 Years");
-    expect(result).toContain("bold, visionary reimagining");
-    expect(result).toContain("spatial");
+    expect(result).toContain("Bold, striking, high-impact");
   });
 
-  it("includes user prompt when provided", () => {
+  it("includes user context when provided", () => {
     const result = buildPrompt("1y", "A fitness tracking app");
     expect(result).toContain('"A fitness tracking app"');
-    expect(result).toContain("APP CONTEXT FROM PARTICIPANT");
+    expect(result).toContain("Do NOT change what was drawn");
   });
 
   it("trims user prompt", () => {
@@ -45,47 +45,45 @@ describe("buildPrompt", () => {
     expect(result).toContain('"hello world"');
   });
 
-  it("omits user description section when prompt is empty", () => {
+  it("omits context section when prompt is empty", () => {
     const result = buildPrompt("1y", "");
-    expect(result).not.toContain("APP CONTEXT FROM PARTICIPANT");
+    expect(result).not.toContain("CONTEXT:");
   });
 
-  it("omits user description section when prompt is whitespace only", () => {
+  it("omits context section when prompt is whitespace only", () => {
     const result = buildPrompt("1y", "   ");
-    expect(result).not.toContain("APP CONTEXT FROM PARTICIPANT");
+    expect(result).not.toContain("CONTEXT:");
   });
 });
 
 describe("buildRegionRefinePrompt", () => {
-  it("includes cropped section context", () => {
+  it("includes cropped section notice", () => {
     const result = buildRegionRefinePrompt("1y", "");
     expect(result).toContain("CROPPED SECTION");
-    expect(result).toContain("bigger design");
+    expect(result).toContain("Do not add anything around the edges");
   });
 
-  it("includes preservation rules", () => {
+  it("includes core refine rules", () => {
     const result = buildRegionRefinePrompt("3y", "");
-    expect(result).toContain("LAYOUT: Keep every element in its approximate position");
+    expect(result).toContain("Render EXACTLY what is drawn");
   });
 
-  it("includes mode context and design direction", () => {
+  it("includes style guide and user context", () => {
     const result = buildRegionRefinePrompt("5y", "test app");
-    expect(result).toContain("5 Years");
-    expect(result).toContain("bold, visionary reimagining");
+    expect(result).toContain("Bold, striking, high-impact");
     expect(result).toContain("test app");
   });
 });
 
 describe("buildGeneratePrompt", () => {
-  it("includes workshop context and generation instructions", () => {
+  it("includes generation instruction", () => {
     const result = buildGeneratePrompt("a chat icon");
-    expect(result).toContain("Future Sketch Workshop");
+    expect(result).toContain("Generate exactly what is described");
     expect(result).toContain("GENERATE: a chat icon");
   });
 
-  it("includes output requirements", () => {
+  it("specifies no extra elements", () => {
     const result = buildGeneratePrompt("navigation bar");
-    expect(result).toContain("OUTPUT REQUIREMENTS");
-    expect(result).toContain("modern, professional, production-quality");
+    expect(result).toContain("Do not add extra elements");
   });
 });

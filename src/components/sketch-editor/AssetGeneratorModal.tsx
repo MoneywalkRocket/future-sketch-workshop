@@ -3,7 +3,6 @@
 import { useState, useCallback } from "react";
 import type { SceneObject, EditorAction } from "@/types/canvas";
 import { generateId } from "./utils/id-generator";
-import { removeWhiteBackground } from "./utils/remove-bg";
 
 interface AssetGeneratorModalProps {
   onClose: () => void;
@@ -46,8 +45,7 @@ export default function AssetGeneratorModal({
         return;
       }
 
-      const processed = await removeWhiteBackground(data.image);
-      setPreviewUrl(processed);
+      setPreviewUrl(data.image);
     } catch {
       setError("Network error. Please try again.");
     } finally {
@@ -165,15 +163,7 @@ export default function AssetGeneratorModal({
           {/* Preview */}
           {previewUrl && (
             <div className="space-y-3">
-              <div
-                className="border border-gray-200 rounded-lg overflow-hidden flex items-center justify-center p-2"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(45deg, #e0e0e0 25%, transparent 25%), linear-gradient(-45deg, #e0e0e0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e0e0e0 75%), linear-gradient(-45deg, transparent 75%, #e0e0e0 75%)",
-                  backgroundSize: "16px 16px",
-                  backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0",
-                }}
-              >
+              <div className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center p-2">
                 <img
                   src={previewUrl}
                   alt="Generated asset"

@@ -3,12 +3,12 @@ import { isValidMode, RefineRequest } from "@/types";
 import { buildPrompt } from "@/lib/prompt-builder";
 import { checkRateLimit } from "@/lib/rate-limit";
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
 // Max ~5MB base64 payload
 const MAX_IMAGE_SIZE = 7_000_000;
 
 export async function POST(req: NextRequest) {
+  const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
   // Rate limiting
   const ip =
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
